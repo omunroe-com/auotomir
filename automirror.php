@@ -16,7 +16,10 @@
 	$log =& new Logger(1,$MAIL_TO);
 	$db =& new Database($log,'host=62.65.68.80 user=mhapgmir dbname=mhapgmir');
 
-	$log->Status('Connecting to database...');
+	$log->status('Resetting flapping flags...');
+	$db->Query("UPDATE mirrors SET flapping=0,insync=0 WHERE enabled=1 AND flapping=1 AND (CURRENT_TIMESTAMP - (SELECT max(dat) FROM mirror_state_change WHERE mirrors.id=mirror_state_change.mirror) > '24 hours')");
+	
+	$log->Status('Fetching list of mirrors...');
 	$mirrors = $db->Query("SELECT id,ip,insync,description FROM mirrors WHERE enabled=1 AND flapping=0", TRUE);
 	
 	$log->Status('Loading from wwwmaster...');
@@ -71,7 +74,7 @@
 
 	// Look for flapping servers.
 	// We define flapping has having more than four state-changes in the past five hours
-	// Note! We *never* reset the flapping flag, that has to be done manually.
+	// Note! We reset the flapping flag after 24 hours.
 	$log->Status('Looking for flapping servers');
 	$flappers = $db->Query("SELECT id,ip,description FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE current_timestamp-dat<'5 hours' AND mirrors.enabled=1 AND mirrors.flapping=0 GROUP BY id,ip,description HAVING count(*) > 3",TRUE);
 	while ($row = pg_fetch_row($flappers)) {
