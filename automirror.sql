@@ -1,5 +1,3 @@
-CREATE SCHEMA automirror;
-SET search_path='automirror';
 CREATE TABLE zone_last_dump(
 	lastdump timestamp without time zone
 );
@@ -33,15 +31,9 @@ CREATE TABLE nameservers (
 );
 
 INSERT INTO mirrortypes (type) VALUES ('static');
-INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','212.247.200.180',1,1,0,'Eastside');
-INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','65.19.161.2',1,1,0,'Borg');
-INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','66.98.251.159',1,1,0,'svr4');
-INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','217.20.119.91',1,1,0,'Pervasive');
+INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','212.247.200.180',1,1,0);
+INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','65.19.161.2',1,1,0);
+INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','66.98.251.159',1,1,0);
 
 INSERT INTO nameservers (host,ip) VALUES ('ns.hub.org','200.46.204.2');
 INSERT INTO nameservers (host,ip) VALUES ('ns2.hub.org','66.98.250.36');
-INSERT INTO nameservers (host,ip) VALUES ('ns3.hub.org','200.46.204.4');
-INSERT INTO nameservers (host,ip) VALUES ('ns-a.lerctr.org','192.147.25.11');
-INSERT INTO nameservers (host,ip) VALUES ('ns-b.lerctr.org','192.147.25.45');
-INSERT INTO nameservers (host,ip) VALUES ('ns-1.sollentuna.net','62.65.68.8');
-

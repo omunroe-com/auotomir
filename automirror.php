@@ -14,11 +14,17 @@
 	}
 
 	$log =& new Logger(1,$MAIL_TO);
-	$db =& new Database($log,'host=62.65.68.80 user=mhapgmir dbname=mhapgmir');
+	$db =& new Database($log);
 
-	$log->status('Resetting flapping flags...');
-	$db->Query("UPDATE mirrors SET flapping=0,insync=0 WHERE enabled=1 AND flapping=1 AND (CURRENT_TIMESTAMP - (SELECT max(dat) FROM mirror_state_change WHERE mirrors.id=mirror_state_change.mirror) > '24 hours')");
-	
+        $log->status('Resetting flapping flags...');
+	$oldflap = $db->Query("SELECT id FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE enabled=1 AND flapping=1 GROUP BY id HAVING (julianday('now')-max(julianday(dat)))>1");
+	if (sqlite_num_rows($oldflap) > 0) {
+		while ($row = sqlite_fetch_array($oldflap)) {
+			$log->Log('Resetting flapping flag for ' . $row[0]);
+			$db->NonFlappingMirror($row[0]);
+		}
+	}
+
 	$log->Status('Fetching list of mirrors...');
 	$mirrors = $db->Query("SELECT id,ip,insync,description FROM mirrors WHERE enabled=1 AND flapping=0", TRUE);
 	
@@ -31,7 +37,7 @@
 	}
 	$log->Status('wwwmaster has sync date: ' . $wwwmaster->LastUpdatedStr());
 
-	while ($row = pg_fetch_row($mirrors)) {
+	while ($row = sqlite_fetch_array($mirrors)) {
 		$log->Status('Scanning mirror ' . $row[1]);
 		
 		$current =& new MirrorLoader($log,$row[1],'www.postgresql.org');
@@ -69,27 +75,23 @@
 		}
 	}
 
-	pg_free_result($mirrors);
-
 
 	// Look for flapping servers.
 	// We define flapping has having more than four state-changes in the past five hours
-	// Note! We reset the flapping flag after 24 hours.
 	$log->Status('Looking for flapping servers');
-	$flappers = $db->Query("SELECT id,ip,description FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE current_timestamp-dat<'5 hours' AND mirrors.enabled=1 AND mirrors.flapping=0 GROUP BY id,ip,description HAVING count(*) > 3",TRUE);
-	while ($row = pg_fetch_row($flappers)) {
+	$flappers = $db->Query("SELECT id,ip,description FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE (julianday('now')*24-julianday(dat)*24)<5 AND mirrors.enabled=1 AND mirrors.flapping=0 GROUP BY id,ip,description HAVING count(*) > 3", TRUE);
+	while ($row = sqlite_fetch_array($flappers)) {
 		$log->Log('Mirror ' . $row[1] . ' (' . $row[2] . ') is flapping, disabling.');
 		$db->FlappingMirror($row[0]);
 	}
-	pg_free_result($flappers);
 
 	// Make sure we don't spit out a completely empty zone file
 	$log->Status('Looking for empty mirror types');
-	$emptytypes = $db->Query('SELECT type FROM mirrortypes WHERE NOT EXISTS (SELECT * FROM mirrors WHERE mirrors.type=mirrortypes.type AND mirrors.enabled=1 AND mirrors.insync=1 AND mirrors.flapping=0)', TRUE);
-	if (pg_num_rows($emptytypes) > 0) {
+	$emptytypes = $db->Query('SELECT type FROM mirrors GROUP BY type having sum(CASE WHEN enabled=1 AND insync=1 AND flapping=0 THEN 1 ELSE 0 END)=0', TRUE);
+	if (sqlite_num_rows($emptytypes) > 0) {
 		// YIKES!
 		$log->Log('WARNING! One or more mirror types would end up empty:');
-		while ($row = pg_fetch_row($emptytypes)) {
+		while ($row = sqlite_fetch_array($emptytypes)) {
 			$log->Log('Type: ' . $row[0]);
 		}
 		$log->Log('ROLLING BACK ALL CHANGES AND REVERTING TO PREVIOUS VERSION OF ZONE!');
@@ -104,8 +106,8 @@
 	if (!$db->_changed) {
 		// No changes made. But we still spit out one zone / day, so scripts
 		// monitoring this script will know we are alive
-		$lastdump = $db->Query("SELECT CASE WHEN current_timestamp-lastdump>'24 hours'::interval THEN 1 ELSE 0 END FROM zone_last_dump", TRUE);
-		if (!($row = pg_fetch_row($lastdump))) {
+		$lastdump = $db->Query("SELECT CASE WHEN julianday('now')-julianday(lastdump)>1 THEN 1 ELSE 0 END FROM zone_last_dump", TRUE);
+		if (!($row = sqlite_fetch_array($lastdump))) {
 			$log->Log('Could not determine last dump date - zero rows!');
 			$log->Flush();
 			exit(1);
@@ -121,13 +123,12 @@
 
 	$zg =& new ZoneGenerator($log,$db,$ZONE_PATH);
 	$entries = $db->Query('SELECT type,ip FROM mirrors WHERE enabled=1 AND insync=1 AND flapping=0 ORDER BY type',TRUE);
-	while ($row = pg_fetch_row($entries)) {
+	while ($row = sqlite_fetch_array($entries)) {
 		$zg->AddServer($row[0],$row[1]);
 	}
-	pg_free_result($entries);
 
 	$log->Log('Dumping new zonefile');
-	$db->Query('UPDATE zone_last_dump SET lastdump=CURRENT_TIMESTAMP',TRUE);
+	$db->Query("UPDATE zone_last_dump SET lastdump=datetime('now')",TRUE);
 	if ($zg->DumpFile()) {
 		$db->Commit();
 	}
@@ -215,52 +216,47 @@
 		var $_log = null;
 		var $_changed = FALSE;
 
-		function Database(&$log,$connstr) {
+		function Database(&$log) {
 			$this->_log =& $log;
 
-			$this->_db = @pg_connect($connstr);
+			$this->_db = sqlite_open('mirror.db');
 			if (!$this->_db) {
 				$this->_log->Log('Failed to connect to database: ' . $php_errormsg . '!');
 				$this->_log->Flush();
 				exit(1);
 			}
 
-			if (!pg_query($this->_db, "SET search_path='automirror'")) {
-				$this->_log->Log('Failed to set search_path: ' . pg_last_error($this->_db));
-				$this->_log->Flush();
-				exit(1);
-			}
 			$this->Begin();
 		}
 
 		function Begin() {
-			if (!pg_query($this->_db, "BEGIN TRANSACTION")) {
-				$this->_log->Log('Failed to start transaction: ' . pg_last_error($this->_db));
+			if (!sqlite_query($this->_db, "BEGIN TRANSACTION")) {
+				$this->_log->Log('Failed to start transaction: ' . sqlite_last_error($this->_db));
 				$this->_log->Flush();
 				exit(1);
 			}
 		}
 
 		function Commit() {
-			if (!pg_query($this->_db, "COMMIT TRANSACTION")) {
-				$this->_log->Log('Failed to commit transaction: ' . pg_last_error($this->_db));
+			if (!sqlite_query($this->_db, "COMMIT TRANSACTION")) {
+				$this->_log->Log('Failed to commit transaction: ' . sqlite_last_error($this->_db));
 				return false;
 			}
 			return true;
 		}
 
 		function Rollback() {
-			if (!pg_query($this->_db, "ROLLBACK TRANSACTION")) {
-				$this->_log->Log('Failed to rollback transaction: ' . pg_last_error($this->_db));
+			if (!sqlite_query($this->_db, "ROLLBACK TRANSACTION")) {
+				$this->_log->Log('Failed to rollback transaction: ' . sqlite_last_error($this->_db));
 				return false;
 			}
 			return true;
 		}
 
-		function Query($query, $exitonfail) {
-			$r = pg_query($this->_db, $query);
+		function Query($query, $exitonfail=FALSE) {
+			$r = sqlite_query($this->_db, $query);
 			if (!$r) {
-				$this->_log->Log('Query to database backend failed: ' . pg_last_error($this->_db));
+				$this->_log->Log('Query to database backend failed: ' . sqlite_last_error($this->_db));
 				$this->_log->Log('Query was: "' . $query . '"');
 				if ($exitonfail) {
 					$this->_log->Flush();
@@ -278,12 +274,16 @@
 			$this->SetMirrorState($mirrid,1,$reason);
 		}
 		function SetMirrorState($mirrid,$state,$reason) {
-			$this->Query("INSERT INTO mirror_state_change(mirror,dat,newstate,comment) VALUES (" . $mirrid . ",CURRENT_TIMESTAMP," . $state . ",'" . pg_escape_string($reason) . "')",TRUE);
+			$this->Query("INSERT INTO mirror_state_change(mirror,dat,newstate,comment) VALUES (" . $mirrid . ",datetime('now')," . $state . ",'" . $reason . "')",TRUE);
 			$this->Query("UPDATE mirrors SET insync=" . $state . " WHERE id=" . $mirrid,TRUE);
 			$this->_changed = TRUE;
 		}
 		function FlappingMirror($mirrid) {
 			$this->Query("UPDATE mirrors SET flapping=1 WHERE id=" . $mirrid,TRUE);
+			$this->_changed = TRUE;
+		}
+		function NonFlappingMirror($mirrid) {
+			$this->Query("UPDATE mirrors SET flapping=0 WHERE id=" . $mirrid,TRUE);
 			$this->_changed = TRUE;
 		}
 	}
@@ -327,7 +327,7 @@ $TTL 15M
 		15M ; Minimum TTL
 )
 ';
-			while ($row = pg_fetch_row($nameservers)) {
+			while ($row = sqlite_fetch_array($nameservers)) {
 				$contents .= '@ IN NS ' . $row[0] . ".\n";
 			}
 			$contents .= "\n\n";
