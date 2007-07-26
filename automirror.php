@@ -162,7 +162,7 @@
 			}
 
 
-			$q = "GET /sync_timestamp HTTP/1.0\nHost: " . $this->_host . "\nUser-Agent: pgautomirror/0\n\n";
+			$q = "GET /web_sync_timestamp HTTP/1.0\nHost: " . $this->_host . "\nUser-Agent: pgautomirror/0\n\n";
 			if (!fwrite($fp, $q)) {
 				$this->_log->Log('Failed to write network data to ' . $this->_ip);
 				fclose($fp);

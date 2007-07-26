@@ -20,14 +20,14 @@ The automatic mirror systems works like this, in a few short points:
   runs every 5 minutes (at least) to verify the currentness of the different
   mirrors.
 
-* This script connects to the master server and fetches /sync_timestamp. If
+* This script connects to the master server and fetches /web_sync_timestamp. If
   it cannot do this (master is down) it will send an error message and skip
   any further processing. This means that if the master goes down, we no longer
   update the other servers. In the future, we might want to keep scanning
   for servers that are down, but skip checking the actual timestamp.
 
 * After this, it connects in sequence to each listed DNS server, and fetches
-  /sync_timestamp. If this fails, or if sync_timestamp is too far off from
+  /web_sync_timestamp. If this fails, or if web_sync_timestamp is too far off from
   the master servers, the server will be disabled (in the database). Likewise,
   if the server was down and is now current, it will be re-enabled.
 
