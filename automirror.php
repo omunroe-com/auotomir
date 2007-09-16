@@ -4,7 +4,7 @@
 	// Path for zone file
 	$ZONE_PATH = "/usr/local/bind/var/";
 	// IP of the master machine that keeps the main timestamp
-	$MASTERIP = '65.19.161.25';
+	$MASTERIP = '217.196.146.204';
 
 	// Commandline has receiver of mirror reports
 	$MAIL_TO = $argv[1];
