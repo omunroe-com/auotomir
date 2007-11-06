@@ -18,7 +18,8 @@ The automatic mirror systems works like this, in a few short points:
 
 * On a machine that *must not* be one of the web- or DNS servers, a script
   runs every 5 minutes (at least) to verify the currentness of the different
-  mirrors.
+  mirrors. This machine should also *not* be on the same network as a static
+  mirror.
 
 * This script connects to the master server and fetches /web_sync_timestamp. If
   it cannot do this (master is down) it will send an error message and skip
@@ -26,7 +27,7 @@ The automatic mirror systems works like this, in a few short points:
   update the other servers. In the future, we might want to keep scanning
   for servers that are down, but skip checking the actual timestamp.
 
-* After this, it connects in sequence to each listed DNS server, and fetches
+* After this, it connects in sequence to each listed web server, and fetches
   /web_sync_timestamp. If this fails, or if web_sync_timestamp is too far off from
   the master servers, the server will be disabled (in the database). Likewise,
   if the server was down and is now current, it will be re-enabled.
@@ -54,11 +55,10 @@ The automatic mirror systems works like this, in a few short points:
 
 Requirements
 ------------
-* A postgresql database. All tables are stored in the schema "automirror". The
-  tables are very small and simple.
+* A sqlite database called mirror.db.
 
 * PHP is used to run the queries. Naturally, it needs to be compiled with
-  postgresql support.
+  sqlite support.
 
 * The zones are generated in BIND format. It's been tested with BIND 9.3.
 
