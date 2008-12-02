@@ -2,7 +2,7 @@
 	// Maximum age of a mirror in seconds
 	$MAX_TIME_DIFF = 60*125; // 120 minutes + a little margin
 	// Path for zone file
-	$ZONE_PATH = "/usr/local/bind/var/";
+	$ZONE_PATH = "/usr/local/automirror/zone/";
 	// IP of the master machine that keeps the main timestamp
 	$MASTERIP = '217.196.146.204';
 

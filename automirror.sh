@@ -2,11 +2,11 @@
 
 # Run the automirror script with a timeout (in seconds)
 TIMEOUT=120
-MAILREPORT="pgsql-slavestothewww@postgresql.org mha@sollentuna.net dpage@vale-housing.co.uk"
+MAILREPORT="Sysadmin Reports <sysadmin-reports@postgresql.org>"
 
-cd /root/pgmirror
+cd /usr/local/automirror/automirror
 
-/usr/local/bin/php automirror.php "$MAILREPORT" > mirrors.log 2>&1 &
+/usr/bin/php automirror.php "$MAILREPORT" > mirrors.log 2>&1 &
 export BG=$!
 (sleep $TIMEOUT >/dev/null 2>&1 ; kill ${BG} > /dev/null 2>&1) &
 export BG2=$!
@@ -17,5 +17,5 @@ if [ ! $? = 0 ]; then
 fi
 
 kill ${BG2} >/dev/null 2>&1
-/usr/local/bind/sbin/rndc reload mirrors.postgresql.org
+/usr/sbin/rndc reload mirrors.postgresql.org
 
