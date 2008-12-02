@@ -6,7 +6,7 @@ use Net::DNS;
 
 my $DEBUG=0;
 my $DOMAIN="mirrors.postgresql.org";
-my $MASTER="nagios.pgadmin.org";
+my $MASTER="dominion.postgresql.org";
 
 my $errors = '';
 
