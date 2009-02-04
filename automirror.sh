@@ -2,7 +2,7 @@
 
 # Run the automirror script with a timeout (in seconds)
 TIMEOUT=120
-MAILREPORT="Sysadmin Reports <sysadmin-reports@postgresql.org>"
+MAILREPORT="sysadmin-reports@postgresql.org"
 
 cd /usr/local/automirror/automirror
 
@@ -12,10 +12,13 @@ export BG=$!
 export BG2=$!
 wait ${BG} >/dev/null 2>&1
 if [ ! $? = 0 ]; then
-   echo "An error occured when running the automirror script! Something is wrong!!!" | /usr/sbin/sendmail $MAILREPORT
+   echo "An error occured when running the automirror script! Something is wrong!!!" | /bin/mail -s "automirror error report" $MAILREPORT
    exit
 fi
 
 kill ${BG2} >/dev/null 2>&1
-/usr/sbin/rndc reload mirrors.postgresql.org
-
+sudo /usr/sbin/rndc reload mirrors.postgresql.org
+if [ ! $? = 0 ]; then
+	echo "failed to reload mirrors.postgresql.org zone" | /bin/mail -s "automirror failure report" $MAILREPORT
+	exit
+fi
