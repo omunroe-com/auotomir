@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Run the automirror script with a timeout (in seconds)
-TIMEOUT=120
+TIMEOUT=180
 MAILREPORT="sysadmin-reports@postgresql.org"
 
 cd /usr/local/automirror/automirror
@@ -16,7 +16,13 @@ if [ ! $? = 0 ]; then
    exit
 fi
 
+sudo /usr/sbin/rndc reload mirrors.postgresql.org
+if [ ! $? = 0 ]; then
+	echo "failed to reload mirrors.postgresql.org zone" | /bin/mail -s "automirror failure report" $MAILREPORT
+	exit
+fi
 kill ${BG2} >/dev/null 2>&1
+
 sudo /usr/sbin/rndc reload mirrors.postgresql.org
 if [ ! $? = 0 ]; then
 	echo "failed to reload mirrors.postgresql.org zone" | /bin/mail -s "automirror failure report" $MAILREPORT
