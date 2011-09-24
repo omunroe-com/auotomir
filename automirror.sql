@@ -4,7 +4,11 @@ CREATE TABLE zone_last_dump(
 INSERT INTO zone_last_dump values ('2000-01-01');
 
 CREATE TABLE mirrortypes (
-	type varchar(8) NOT NULL PRIMARY KEY
+	type varchar(8) NOT NULL PRIMARY KEY,
+	masterip varchar(16) NOT NULL UNIQUE,
+	masterhost text NOT NULL,
+	mirrorhost text NOT NULL,
+	syncfile text NOT NULL
 );
 
 CREATE TABLE mirrors (
@@ -30,7 +34,8 @@ CREATE TABLE nameservers (
 	ip varchar(16) NOT NULL UNIQUE
 );
 
-INSERT INTO mirrortypes (type) VALUES ('static');
+INSERT INTO mirrortypes VALUES ('static', '217.196.146.204', 'wwwmaster.postgresql.org', 'www.postgresql.org', 'web_sync_timestamp');
+INSERT INTO mirrortypes VALUES ('ftp', '204.145.120.228', 'ftp.postgresql.org', 'ftp.postgresql.org', 'pub/sync_timestamp');
 INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','212.247.200.180',1,1,0);
 INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','65.19.161.2',1,1,0);
 INSERT INTO mirrors (type,ip,enabled,insync,flapping) VALUES ('static','66.98.251.159',1,1,0);

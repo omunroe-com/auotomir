@@ -1,46 +1,43 @@
 <?php
-	// Maximum age of a mirror in seconds
+// Commandline has receiver of mirror reports
+$MAIL_TO = $argv[1];
+if ($MAIL_TO == '') {
+  echo "Missing or invalid mail receipient.\n";
+  exit(1);
+}
+
+$log =& new Logger(1,$MAIL_TO);
+$db =& new Database($log);
+
+initialize($log, $db);
+$mirrortypes = $db->Query("SELECT type, masterip, masterhost, mirrorhost, syncfile FROM mirrortypes");
+while ($row = sqlite_fetch_array($mirrortypes)) {
+  check_mirror($log, $db, $row[0], $row[1], $row[2], $row[3], $row[4]);
+}
+
+finalize($log, $db);
+
+function check_mirror($log, $db, $mirrtype, $MASTERIP, $MASTERHOST, $MIRRORHOST, $SYNCFILE) {
+  	// Maximum age of a mirror in seconds
 	$MAX_TIME_DIFF = 60*125; // 120 minutes + a little margin
-	// Path for zone file
-	$ZONE_PATH = "/usr/local/automirror/zone/";
-	// IP of the master machine that keeps the main timestamp
-	$MASTERIP = '217.196.146.204';
-
-	// Commandline has receiver of mirror reports
-	$MAIL_TO = $argv[1];
-	if ($MAIL_TO == '') {
-		echo "Missing or invalid mail receipient.\n";
-		exit(1);
-	}
-
-	$log =& new Logger(1,$MAIL_TO);
-	$db =& new Database($log);
-
-        $log->status('Resetting flapping flags...');
-	$oldflap = $db->Query("SELECT id FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE enabled=1 AND flapping=1 GROUP BY id HAVING (julianday('now')-max(julianday(dat)))>1");
-	if (sqlite_num_rows($oldflap) > 0) {
-		while ($row = sqlite_fetch_array($oldflap)) {
-			$log->Log('Resetting flapping flag for ' . $row[0]);
-			$db->NonFlappingMirror($row[0]);
-		}
-	}
+        $log->status("Processing mirrors of type $mirrtype");
 
 	$log->Status('Fetching list of mirrors...');
-	$mirrors = $db->Query("SELECT id,ip,insync,description FROM mirrors WHERE enabled=1 AND flapping=0", TRUE);
+	$mirrors = $db->Query("SELECT id,ip,insync,description FROM mirrors WHERE enabled=1 AND flapping=0 AND type='$mirrtype'", TRUE);
 	
-	$log->Status('Loading from wwwmaster...');
-	$wwwmaster =& new MirrorLoader($log,$MASTERIP,'wwwmaster.postgresql.org');
+	$log->Status('Loading from master...');
+	$wwwmaster =& new MirrorLoader($log,$MASTERIP,$MASTERHOST,$SYNCFILE);
 	if (!$wwwmaster->FetchLastUpdate()) {
-		$log->Log('Failed to load sync date from wwwmaster!');
+		$log->Log('Failed to load sync date from master!');
 		$log->Flush();
 		exit(0); // Exitcode 0 will cause double error msgs
 	}
-	$log->Status('wwwmaster has sync date: ' . $wwwmaster->LastUpdatedStr());
+	$log->Status('master has sync date: ' . $wwwmaster->LastUpdatedStr());
 
 	while ($row = sqlite_fetch_array($mirrors)) {
 		$log->Status('Scanning mirror ' . $row[1]);
 		
-		$current =& new MirrorLoader($log,$row[1],'www.postgresql.org');
+		$current =& new MirrorLoader($log,$row[1],$MIRRORHOST,$SYNCFILE);
 		if (!$current->FetchLastUpdate()) {
 			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') returns no timestamp!');
 			if ($row[2] == 1) {
@@ -74,6 +71,22 @@
 			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') recovered, now enabled.');
 		}
 	}
+}
+
+function initialize($log, $db) {
+        $log->status('Resetting flapping flags...');
+	$oldflap = $db->Query("SELECT id FROM mirrors INNER JOIN mirror_state_change ON mirrors.id=mirror_state_change.mirror WHERE enabled=1 AND flapping=1 GROUP BY id HAVING (julianday('now')-max(julianday(dat)))>1");
+	if (sqlite_num_rows($oldflap) > 0) {
+		while ($row = sqlite_fetch_array($oldflap)) {
+			$log->Log('Resetting flapping flag for ' . $row[0]);
+			$db->NonFlappingMirror($row[0]);
+		}
+	}
+}
+
+function finalize($log, $db) {
+	// Path for zone file
+	$ZONE_PATH = "/usr/local/automirror/zone/";
 
 
 	// Look for flapping servers.
@@ -136,6 +149,7 @@
 	$log->Log('Completed.');
 	$log->Flush();
 	exit(0);
+}
 
 
 	//
@@ -145,13 +159,15 @@
 		var $_log;
 		var $_ip='';
 		var $_host;
+		var $_syncfile;
 		var $_lastupdate = -1;
 		var $_port = 80;
 
-		function MirrorLoader(&$log,$ip,$host) {
+		function MirrorLoader(&$log,$ip,$host,$syncfile) {
 			$this->_log =& $log;
 			$this->_host = $host;
 			$this->_ip = $ip;
+			$this->_syncfile = $syncfile;
 		}
 
 		function FetchLastUpdate() {
@@ -162,7 +178,7 @@
 			}
 
 
-			$q = "GET /web_sync_timestamp HTTP/1.0\nHost: " . $this->_host . "\nUser-Agent: pgautomirror/0\n\n";
+			$q = "GET /" . $this->_syncfile . " HTTP/1.0\r\nHost: " . $this->_host . "\r\nUser-Agent: pgautomirror/0\r\n\r\n";
 			if (!fwrite($fp, $q)) {
 				$this->_log->Log('Failed to write network data to ' . $this->_ip);
 				fclose($fp);
