@@ -49,8 +49,8 @@ function check_mirror($log, $db, $mirrtype, $MASTERIP, $MASTERHOST, $MIRRORHOST,
 
 		$diff = $wwwmaster->_lastupdate - $current->_lastupdate;
 		if ($diff < 0) {
-			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') claims to be newer than wwwmaster!');
-			$log->Log('Mirror has ' . $current->LastUpdatedStr() . ', wwwmaster has ' . $wwwmaster->LastUpdatedStr());
+			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') claims to be newer than master!');
+			$log->Log('Mirror has ' . $current->LastUpdatedStr() . ', master has ' . $wwwmaster->LastUpdatedStr());
 			if ($row[2] == 1) {
 				$db->DisableMirror($row[0],'Newer than master');
 				$log->Log('Mirror ' . $row[1] . ' now disabled');
@@ -59,7 +59,7 @@ function check_mirror($log, $db, $mirrtype, $MASTERIP, $MASTERHOST, $MIRRORHOST,
 		}
 		if ($diff > $MAX_TIME_DIFF) {
 			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') has not been updated.');
-			$log->Log('Mirror has ' . $current->LastUpdatedStr() . ', wwwmaster has ' . $wwwmaster->LastUpdatedStr());
+			$log->Log('Mirror has ' . $current->LastUpdatedStr() . ', master has ' . $wwwmaster->LastUpdatedStr());
 			if ($row[2] == 1) {
 				$db->DisableMirror($row[0],'Not updated');
 				$log->Log('Mirror ' . $row[1] . ' now disabled');
