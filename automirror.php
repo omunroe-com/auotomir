@@ -50,7 +50,7 @@ function check_mirror($log, $db, $mirrtype, $MASTERIP, $MASTERHOST, $MIRRORHOST,
 		$diff = $wwwmaster->_lastupdate - $current->_lastupdate;
 		// We allow for a mirror to claim it's 10 seconds in the
 		// future, to allow for varnish'ed dynamic sites
-		if ($diff < 10) {
+		if ($diff < -10) {
 			$log->Log('Mirror ' . $row[1] . ' (' . $row[3] . ') claims to be newer than master!');
 			$log->Log('Mirror has ' . $current->LastUpdatedStr() . ', master has ' . $wwwmaster->LastUpdatedStr());
 			if ($row[2] == 1) {
