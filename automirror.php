@@ -208,6 +208,7 @@ function finalize($log, $db) {
 			// Find content length
 			if (!preg_match('@Content-Length: ([0-9]+)@', $buf, $parts)) {
 				$this->_log->Log($this->_ip . ' did not return a valid Content-Length');
+				$this->_log->Log($this->_ip . ' fullbuffer:"' . $buf . '"');
 				return FALSE;
 			}
 
@@ -337,7 +338,7 @@ function finalize($log, $db) {
 			$nameservers = $this->_db->Query("SELECT host FROM nameservers", TRUE);
 			$contents = '
 $TTL 15M
-@	IN SOA ns.hub.org. root.hub.org. (
+@	IN SOA ns1.postgresql.org. webmaster.postgresql.org. (
 		' . $serial . ' ; serial
 		15M ; refresh
 		5M ; retry
