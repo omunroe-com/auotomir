@@ -35,8 +35,7 @@ The automatic mirror systems works like this, in a few short points:
 * A very simple flap detection algorithm is run after all servers have been
   scanned. If a server has changed state too many times in a specified interval,
   the server is listed as flapping. In this case, it will not be included in the
-  zone and it will *NOT* be automatically re-enabled. Flapping servers have to
-  be manually enabled.
+  zone and it will be automatically re-enabled aafter 24 hours.
 
 * If any data has changed due to this, the zone is reloaded in the nameserver,
   and propagates to all the clients based on DNS NOTIFY messages.
